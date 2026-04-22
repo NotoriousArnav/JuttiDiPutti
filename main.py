@@ -177,11 +177,16 @@ def show_game_over(elapsed: int, is_new_highscore: bool):
 
 caught = False
 
+clock = pygame.time.Clock()
+FPS = 60
+
 run_countdown()
-start_time = pygame.time.get_ticks()
-game_started = True
+elapsed_ms = 0
 
 while True:
+    dt = clock.tick(FPS)
+    elapsed_ms += dt
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             break
@@ -196,14 +201,14 @@ while True:
 
     mouse_x, mouse_y = pygame.mouse.get_pos()
 
-    moveParent(mouse_x, mouse_y, speed=1.6 * speed_multiplier)
+    moveParent(mouse_x, mouse_y, speed=2 * speed_multiplier)
 
     slipper_target_x = parent_rect.centerx - 60
     slipper_target_y = parent_rect.centery - 55
-    moveSlipper(slipper_target_x, slipper_target_y, speed=2 * speed_multiplier)
+    moveSlipper(slipper_target_x, slipper_target_y, speed=2.4 * speed_multiplier)
 
     if checkSlipperCollision(mouse_x, mouse_y):
-        elapsed = (pygame.time.get_ticks() - start_time) // 1000
+        elapsed = elapsed_ms // 1000
         is_new_hs = save_highscore(Player_Name, elapsed)
         show_game_over(elapsed, is_new_hs)
 
@@ -219,7 +224,7 @@ while True:
                         parent_rect.center = spawn
                         slipper_rect.center = spawn
                         run_countdown()
-                        start_time = pygame.time.get_ticks()
+                        elapsed_ms = 0
                     elif event.key == pygame.K_q:
                         pygame.quit()
                         exit()
@@ -227,7 +232,7 @@ while True:
     screen.blit(child, child_rect)
     child_rect.center = (mouse_x, mouse_y)
 
-    elapsed = (pygame.time.get_ticks() - start_time) // 1000
+    elapsed = elapsed_ms // 1000
     speed_multiplier = 1.0 + (elapsed / 100.0)
 
     timer_surface = timer_font.render(
