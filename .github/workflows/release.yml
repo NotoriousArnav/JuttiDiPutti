@@ -1,0 +1,128 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: JuttiDiPutti-Windows-x64
+            exe_name: main.exe
+            python-version: "3.12"
+          - os: ubuntu-latest
+            artifact: JuttiDiPutti-Linux-x64
+            exe_name: main
+            python-version: "3.12"
+          - os: macos-latest
+            artifact: JuttiDiPutti-macOS-x64
+            exe_name: main
+            python-version: "3.12"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv pip install --system pygame pyqt6 pillow pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller main.spec --noconfirm
+
+      - name: Create portable zip
+        run: python build-zip.py --platform ${{ matrix.artifact }} --exe-name ${{ matrix.exe_name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.zip
+          retention-days: 5
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Rename artifact directories
+        run: |
+          cd artifacts
+          for dir in */; do
+            base=$(basename "$dir")
+            mv "$dir" "${base}_files"
+          done
+          ls -la
+
+      - name: Create ZIP from artifacts
+        run: |
+          cd artifacts
+          for dir in *_files; do
+            name="${dir%_files}"
+            zip -r "../${name}.zip" "$dir"
+          done
+          cd ..
+          ls -la *.zip
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: |
+            ## Downloads
+
+            Download the portable executable for your platform:
+            - **Windows**: JuttiDiPutti-Windows-x64.zip
+            - **Linux**: JuttiDiPutti-Linux-x64.zip
+            - **macOS**: JuttiDiPutti-macOS-x64.zip
+
+            ## How to Play
+
+            1. Extract the ZIP file
+            2. Run the executable (`main.exe` on Windows, `main` on Linux/macOS)
+            3. Configure your game in the launcher
+            4. Survive as long as you can!
+
+            ## Controls
+
+            - **Move mouse** to control the child
+            - **Q** to quit during gameplay
+            - **R** to restart after getting caught
+          files: "*.zip"
+          tag_name: ${{ github.ref }}
+          release_name: JuttiDiPutti ${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

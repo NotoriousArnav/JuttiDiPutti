@@ -63,6 +63,33 @@ uv sync
 uv run main.py
 ```
 
+## Downloads
+
+Pre-built portable releases for Windows, Linux, and macOS are available on the [Releases](https://github.com/NotoriousArnav/JuttiDiPutti/releases) page.
+
+### How to Play (Release Version)
+
+1. Download the ZIP for your platform
+2. Extract the ZIP file
+3. Run the executable (`main.exe` on Windows, `./main` on Linux/macOS)
+4. Configure your game in the launcher
+5. Survive as long as you can!
+
+## Creating a Release
+
+To create a new release:
+
+1. Update the version in `pyproject.toml`
+2. Create and push a version tag:
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+3. The CI/CD pipeline will automatically:
+   - Build executables for Windows, Linux, and macOS
+   - Create portable ZIP packages
+   - Upload to GitHub Releases
+
 ## License
 
 MIT License
