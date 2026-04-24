@@ -1,245 +1,156 @@
 import pygame
+import sys
 import os
-import json
 
-### GAME MENU SHOULD BE IMPLEMENTED HERE WITH GTK/QT
-### #
+sys.path.insert(0, os.path.dirname(__file__))
+import config
 
-Player_Name: str = "Player"
-
-pygame.init()
-pygame.mixer.init()
-
-RES = (int(os.getenv("RES_WIDTH", 800)), int(os.getenv("RES_HEIGHT", 600)))
-
-screen = pygame.display.set_mode(RES)
-
-pygame.mixer.music.load("assets/background.wav")
-pygame.mixer.music.play(-1)
-pygame.mixer.music.set_volume(0.5)
-
-slipper = pygame.transform.scale(
-    pygame.image.load("assets/slipper.png").convert_alpha(), (50, 100)
-)
-
-slipper_rect = slipper.get_rect()
-
-# 588 598
-child = pygame.transform.scale(
-    pygame.image.load("faces/child.png").convert_alpha(), (588 / 8, 598 / 8)
-)
-
-# 547 457
-parent = pygame.transform.scale(
-    pygame.image.load("faces/parent.png").convert_alpha(), (547 / 5, 457 / 5)
-)
-
-child_rect = child.get_rect()
-parent_rect = parent.get_rect()
-
-spawn = (0, 0)
-
-parent_rect.center = spawn
-slipper_rect.center = spawn
-
-font = pygame.font.SysFont("Arial", 50)
-countdown_font = pygame.font.SysFont("Arial", 120)
-timer_font = pygame.font.SysFont("Arial", 36)
-
-text_surface = font.render("You were Caught", True, (255, 0, 0))
-timer_surface = timer_font.render("Time: 0s", True, (0, 0, 0))
-
-speed_multiplier = 1.0
-
-text_rect = text_surface.get_rect(center=(400, 300))
+from assets import load_image, load_music
+from entities import move_parent, move_weapon, check_collision
+from game_state import init_ui, run_countdown, draw_timer, handle_game_over
 
 
-def run_countdown():
-    for count in range(3, 0, -1):
-        screen.fill((255, 255, 255))
-        count_text = countdown_font.render(str(count), True, (0, 0, 0))
-        count_rect = count_text.get_rect(center=(RES[0] // 2, RES[1] // 2))
-        screen.blit(count_text, count_rect)
-        pygame.display.flip()
-        pygame.time.wait(1000)
+# ==================== GLOBAL STATE ====================
+screen = None
+clock = None
+font = None
+countdown_font = None
+timer_font = None
 
-    start_text = countdown_font.render("START!", True, (0, 200, 0))
-    start_rect = start_text.get_rect(center=(RES[0] // 2, RES[1] // 2))
-    screen.blit(start_text, start_rect)
-    pygame.display.flip()
-    pygame.time.wait(500)
+weapon = None
+weapon_rect = None
+child = None
+child_rect = None
+parent = None
+parent_rect = None
 
-
-def moveSlipper(x: int, y: int, speed: int = 5, tp: bool = False):
-    global slipper_rect
-
-    target = pygame.math.Vector2(x, y)
-    current = pygame.math.Vector2(slipper_rect.center)
-
-    if tp:
-        slipper_rect.center = (x, y)
-    else:
-        distance_vector = target - current
-
-        if distance_vector.length() > 0:
-            if distance_vector.length() <= speed:
-                slipper_rect.center = (x, y)
-            else:
-                move_step = distance_vector.normalize() * speed
-
-                slipper_rect.centerx += move_step.x
-                slipper_rect.centery += move_step.y
-
-
-def moveParent(x: int, y: int, speed: int = 5, tp: bool = False):
-    global parent_rect
-
-    target = pygame.math.Vector2(x, y)
-    current = pygame.math.Vector2(parent_rect.center)
-
-    if tp:
-        parent_rect.center = (x, y)
-    else:
-        distance_vector = target - current
-
-        if distance_vector.length() > 0:
-            if distance_vector.length() <= speed:
-                parent_rect.center = (x, y)
-            else:
-                move_step = distance_vector.normalize() * speed
-
-                parent_rect.centerx += move_step.x
-                parent_rect.centery += move_step.y
-
-
-def checkSlipperCollision(x: int, y: int, radius: int = 50):
-    global slipper_rect
-
-    circle_center = pygame.math.Vector2(x, y)
-    slipper_center = pygame.math.Vector2(slipper_rect.center)
-
-    distance_vector = circle_center - slipper_center
-
-    if (
-        distance_vector.length()
-        < radius + max(slipper_rect.width, slipper_rect.height) / 2
-    ):
-        return True
-    return False
-
-
-def save_highscore(player_name: str, score: int):
-    filepath = "highscore.json"
-
-    highscores = {}
-    if os.path.exists(filepath):
-        with open(filepath, "r") as f:
-            highscores = json.load(f)
-
-    existing_score = highscores.get(player_name, 0)
-
-    if score > existing_score:
-        highscores[player_name] = score
-        with open(filepath, "w") as f:
-            json.dump(highscores, f, indent=2)
-        return True
-    return False
-
-
-def show_game_over(elapsed: int, is_new_highscore: bool):
-    screen.fill((0, 0, 0))
-    pygame.display.flip()
-    pygame.time.wait(500)
-
-    caught_text = font.render("You were Caught", True, (255, 0, 0))
-    caught_rect = caught_text.get_rect(center=(RES[0] // 2, RES[1] // 3))
-    screen.blit(caught_text, caught_rect)
-
-    score_text = timer_font.render(f"Time: {elapsed}s", True, (255, 255, 255))
-    score_rect = score_text.get_rect(center=(RES[0] // 2, RES[1] // 2))
-    screen.blit(score_text, score_rect)
-
-    if is_new_highscore:
-        hs_text = timer_font.render("NEW HIGHSCORE!", True, (255, 215, 0))
-        hs_rect = hs_text.get_rect(center=(RES[0] // 2, RES[1] // 2 + 50))
-        screen.blit(hs_text, hs_rect)
-    else:
-        hs_text = timer_font.render(f"Best: {elapsed}s", True, (200, 200, 200))
-        hs_rect = hs_text.get_rect(center=(RES[0] // 2, RES[1] // 2 + 50))
-        screen.blit(hs_text, hs_rect)
-
-    restart_text = font.render("Press R to Restart or Q to Quit", True, (150, 150, 150))
-    restart_rect = restart_text.get_rect(center=(RES[0] // 2, RES[1] // 2 + 120))
-    screen.blit(restart_text, restart_rect)
-
-    pygame.display.flip()
-
-
-caught = False
-
-clock = pygame.time.Clock()
-FPS = 60
-
-run_countdown()
 elapsed_ms = 0
 
-while True:
-    dt = clock.tick(FPS)
-    elapsed_ms += dt
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            break
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_q:
-                break
+# ==================== INITIALIZATION ====================
+def init_pygame():
+    global screen, clock, font, countdown_font, timer_font
 
-    screen.fill((255, 255, 255))
+    pygame.init()
+    pygame.mixer.init()
 
-    screen.blit(slipper, slipper_rect)
-    screen.blit(parent, parent_rect)
+    screen = pygame.display.set_mode(config.current_resolution)
+    clock = pygame.time.Clock()
 
-    mouse_x, mouse_y = pygame.mouse.get_pos()
+    load_music("assets/background.wav", volume=config.current_volume)
 
-    moveParent(mouse_x, mouse_y, speed=2 * speed_multiplier)
+    font = pygame.font.SysFont("Arial", 50)
+    countdown_font = pygame.font.SysFont("Arial", 120)
+    timer_font = pygame.font.SysFont("Arial", 36)
 
-    slipper_target_x = parent_rect.centerx - 60
-    slipper_target_y = parent_rect.centery - 55
-    moveSlipper(slipper_target_x, slipper_target_y, speed=2.4 * speed_multiplier)
-
-    if checkSlipperCollision(mouse_x, mouse_y):
-        elapsed = elapsed_ms // 1000
-        is_new_hs = save_highscore(Player_Name, elapsed)
-        show_game_over(elapsed, is_new_hs)
-
-        waiting = True
-        while waiting:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    exit()
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_r:
-                        waiting = False
-                        parent_rect.center = spawn
-                        slipper_rect.center = spawn
-                        run_countdown()
-                        elapsed_ms = 0
-                    elif event.key == pygame.K_q:
-                        pygame.quit()
-                        exit()
-
-    screen.blit(child, child_rect)
-    child_rect.center = (mouse_x, mouse_y)
-
-    elapsed = elapsed_ms // 1000
-    speed_multiplier = 1.0 + (elapsed / 100.0)
-
-    timer_surface = timer_font.render(
-        f"Time: {elapsed}s  Speed: {speed_multiplier:.1f}x", True, (0, 0, 0)
+    init_ui(
+        screen,
+        {
+            "font": font,
+            "countdown": countdown_font,
+            "timer": timer_font,
+        },
     )
-    screen.blit(timer_surface, (10, 10))
 
-    pygame.display.flip()
 
-pygame.quit()
+def load_assets():
+    global weapon, weapon_rect, child, child_rect, parent, parent_rect
+
+    child = load_image(config.current_child_face, (588 / 8, 598 / 8))
+    child_rect = child.get_rect()
+
+    parent = load_image(config.current_parent_face, (547 / 5, 457 / 5))
+    parent_rect = parent.get_rect()
+
+    weapon = load_image(config.current_weapon, (50, 100))
+    weapon_rect = weapon.get_rect()
+
+
+def reset_positions():
+    parent_rect.center = config.SPAWN
+    weapon_rect.center = config.SPAWN
+
+
+# ==================== RENDER ====================
+def render_game():
+    screen.fill((255, 255, 255))
+    screen.blit(weapon, weapon_rect)
+    screen.blit(parent, parent_rect)
+    screen.blit(child, child_rect)
+
+
+# ==================== MAIN GAME LOOP ====================
+def run_game(player_name: str = "Player"):
+    global elapsed_ms
+
+    diff_settings = config.current_difficulty
+    parent_speed = diff_settings["parent_speed"]
+    weapon_speed = diff_settings["slipper_speed"]
+    weapon_offset = diff_settings["offset"]
+    start_multiplier = diff_settings.get("start_multiplier", 1.0)
+
+    reset_positions()
+    run_countdown()
+    elapsed_ms = 0
+    speed_multiplier = start_multiplier
+
+    while True:
+        dt = clock.tick(config.FPS)
+        elapsed_ms += dt
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
+                return
+
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+
+        elapsed = elapsed_ms // 1000
+        # After 30 seconds, increase speed by 0.1x per second (starts from start_multiplier)
+        speed_multiplier = start_multiplier + (elapsed / 100)
+
+        move_parent(parent_rect, mouse_x, mouse_y, parent_speed * speed_multiplier)
+
+        weapon_target_x = parent_rect.centerx - weapon_offset
+        weapon_target_y = parent_rect.centery
+        move_weapon(
+            weapon_rect,
+            weapon_target_x,
+            weapon_target_y,
+            weapon_speed * speed_multiplier,
+        )
+
+        if check_collision(weapon_rect, mouse_x, mouse_y):
+            elapsed = elapsed_ms // 1000
+            if handle_game_over(elapsed, player_name, font, countdown_font):
+                reset_positions()
+                run_countdown()
+                elapsed_ms = 0
+                continue
+            return
+
+        render_game()
+        child_rect.center = (mouse_x, mouse_y)
+        draw_timer(timer_font, elapsed, speed_multiplier)
+        pygame.display.flip()
+
+
+def main():
+    from launcher import show_launcher
+
+    settings = show_launcher()
+    if not settings or settings.get("action") != "start":
+        return
+
+    config.apply_settings(settings)
+    player_name = settings.get("player_name", "Player")
+
+    init_pygame()
+    load_assets()
+    run_game(player_name)
+    pygame.quit()
+
+
+if __name__ == "__main__":
+    main()
