@@ -16,9 +16,11 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QFormLayout,
     QMessageBox,
+    QFileDialog,
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QPixmap, QIcon
+from PIL import Image
 
 # Import config
 sys.path.insert(0, os.path.dirname(__file__))
@@ -109,6 +111,9 @@ class GameLauncher(QWidget):
         self.child_combo.currentTextChanged.connect(self.update_child_preview)
         child_layout.addWidget(self.child_combo)
         child_layout.addWidget(self.child_preview)
+        child_upload_btn = QPushButton("Upload")
+        child_upload_btn.clicked.connect(lambda: self.upload_asset("child"))
+        child_layout.addWidget(child_upload_btn)
         asset_layout.addRow("Child Face:", child_layout)
 
         # Parent Face
@@ -124,6 +129,9 @@ class GameLauncher(QWidget):
         self.parent_combo.currentTextChanged.connect(self.update_parent_preview)
         parent_layout.addWidget(self.parent_combo)
         parent_layout.addWidget(self.parent_preview)
+        parent_upload_btn = QPushButton("Upload")
+        parent_upload_btn.clicked.connect(lambda: self.upload_asset("parent"))
+        parent_layout.addWidget(parent_upload_btn)
         asset_layout.addRow("Parent Face:", parent_layout)
 
         # Weapon
@@ -141,6 +149,9 @@ class GameLauncher(QWidget):
         self.weapon_combo.currentTextChanged.connect(self.update_weapon_preview)
         weapon_layout.addWidget(self.weapon_combo)
         weapon_layout.addWidget(self.weapon_preview)
+        weapon_upload_btn = QPushButton("Upload")
+        weapon_upload_btn.clicked.connect(lambda: self.upload_asset("weapon"))
+        weapon_layout.addWidget(weapon_upload_btn)
         asset_layout.addRow("Weapon:", weapon_layout)
 
         asset_group.setLayout(asset_layout)
@@ -214,7 +225,6 @@ class GameLauncher(QWidget):
             label.setText("Error")
             return
 
-        # Scale to fit while maintaining aspect ratio
         label.setPixmap(
             pixmap.scaled(
                 label.size(),
@@ -222,6 +232,74 @@ class GameLauncher(QWidget):
                 Qt.TransformationMode.SmoothTransformation,
             )
         )
+
+    def upload_asset(self, asset_type: str):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            f"Select {asset_type.capitalize()} Image",
+            "",
+            "Image Files (*.png *.jpg *.jpeg *.bmp *.gif *.tiff *.webp);;All Files (*)",
+        )
+
+        if not file_path:
+            return
+
+        # Determine target directory and combo
+        if asset_type == "child":
+            target_dir = config.CHILD_FACES_DIR
+            combo = self.child_combo
+        elif asset_type == "parent":
+            target_dir = config.PARENT_FACES_DIR
+            combo = self.parent_combo
+        else:  # weapon
+            target_dir = config.WEAPONS_DIR
+            combo = self.weapon_combo
+
+        # Convert to PNG if needed using PIL
+        converted_path = self._convert_to_png(file_path, target_dir)
+
+        if converted_path:
+            # Add to combo if not already there
+            current_items = [combo.itemText(i) for i in range(combo.count())]
+            if converted_path not in current_items:
+                combo.addItem(converted_path)
+
+            combo.setCurrentText(converted_path)
+
+    def _convert_to_png(self, input_path: str, output_dir: str) -> str:
+        input_ext = os.path.splitext(input_path)[1].lower()
+
+        if input_ext == ".png" and os.path.dirname(input_path) == os.path.dirname(
+            output_dir.rstrip("/")
+        ):
+            return input_path
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        filename = os.path.basename(input_path)
+        name_without_ext = os.path.splitext(filename)[0]
+
+        # Check if it's already PNG and in the right place
+        if input_ext == ".png":
+            # Copy to target directory
+            output_path = os.path.join(output_dir, filename)
+            import shutil
+
+            shutil.copy(input_path, output_path)
+            return output_path
+
+        # Convert to PNG
+        output_path = os.path.join(output_dir, f"{name_without_ext}.png")
+
+        try:
+            with Image.open(input_path) as img:
+                img = img.convert("RGBA")
+                img.save(output_path, "PNG")
+            return output_path
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to convert image: {str(e)}")
+            return None
 
     def load_saved_settings(self):
         """Load and apply saved settings"""
