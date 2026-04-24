@@ -37,7 +37,8 @@ def init_pygame():
     screen = pygame.display.set_mode(config.current_resolution)
     clock = pygame.time.Clock()
 
-    load_music("assets/background.wav", volume=config.current_volume)
+    if config.current_music_enabled and config.current_music:
+        load_music(config.current_music, volume=config.current_volume)
 
     font = pygame.font.SysFont("Arial", 50)
     countdown_font = pygame.font.SysFont("Arial", 120)

@@ -54,9 +54,11 @@ DEFAULT_CHILD_FACE = "faces/child.png"
 DEFAULT_PARENT_FACE = "faces/parent.png"
 DEFAULT_WEAPON = "assets/slipper.png"
 DEFAULT_MUSIC = "assets/background.wav"
+MUSIC_DIR = "assets/"
 
 # Audio
 MUSIC_VOLUME = 0.5
+MUSIC_ENABLED = True
 
 # Spawn
 SPAWN = (0, 0)
@@ -74,6 +76,8 @@ def load_settings():
         "difficulty": DEFAULT_DIFFICULTY,
         "resolution": "800x600",
         "volume": 0.5,
+        "music_enabled": True,
+        "music": DEFAULT_MUSIC,
         "child_face": DEFAULT_CHILD_FACE,
         "parent_face": DEFAULT_PARENT_FACE,
         "weapon": DEFAULT_WEAPON,
@@ -109,12 +113,15 @@ current_parent_face = DEFAULT_PARENT_FACE
 current_weapon = DEFAULT_WEAPON
 current_volume = MUSIC_VOLUME
 current_resolution = RES
+current_music = DEFAULT_MUSIC
+current_music_enabled = MUSIC_ENABLED
 
 
 def apply_settings(settings: dict):
     """Apply settings to runtime globals"""
     global current_difficulty, current_child_face, current_parent_face
     global current_weapon, current_volume, current_resolution
+    global current_music, current_music_enabled
 
     difficulty_name = settings.get("difficulty", DEFAULT_DIFFICULTY)
     current_difficulty = DIFFICULTIES.get(
@@ -125,6 +132,8 @@ def apply_settings(settings: dict):
     current_parent_face = settings.get("parent_face", DEFAULT_PARENT_FACE)
     current_weapon = settings.get("weapon", DEFAULT_WEAPON)
     current_volume = settings.get("volume", MUSIC_VOLUME)
+    current_music = settings.get("music", DEFAULT_MUSIC)
+    current_music_enabled = settings.get("music_enabled", MUSIC_ENABLED)
 
     res_str = settings.get("resolution", "800x600")
     try:

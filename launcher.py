@@ -17,10 +17,12 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QMessageBox,
     QFileDialog,
+    QCheckBox,
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QPixmap, QIcon
 from PIL import Image
+import pygame
 
 # Import config
 sys.path.insert(0, os.path.dirname(__file__))
@@ -95,6 +97,33 @@ class GameLauncher(QWidget):
         vol_layout.addWidget(self.vol_slider)
         vol_layout.addWidget(self.vol_label)
         main_layout.addLayout(vol_layout)
+
+        # Audio Settings
+        audio_group = QGroupBox("Audio Settings")
+        audio_layout = QVBoxLayout()
+
+        self.music_enabled_checkbox = QCheckBox("Enable Music")
+        self.music_enabled_checkbox.setChecked(True)
+        self.music_enabled_checkbox.stateChanged.connect(self.on_music_enabled_changed)
+        audio_layout.addWidget(self.music_enabled_checkbox)
+
+        music_layout = QHBoxLayout()
+        music_layout.addWidget(QLabel("Music:"))
+        self.music_combo = QComboBox()
+        self.populate_music_combo()
+        music_layout.addWidget(self.music_combo)
+
+        self.preview_btn = QPushButton("Preview")
+        self.preview_btn.clicked.connect(self.preview_music)
+        music_layout.addWidget(self.preview_btn)
+
+        music_upload_btn = QPushButton("Upload")
+        music_upload_btn.clicked.connect(self.upload_music)
+        music_layout.addWidget(music_upload_btn)
+
+        audio_layout.addLayout(music_layout)
+        audio_group.setLayout(audio_layout)
+        main_layout.addWidget(audio_group)
 
         # Asset Selection
         asset_group = QGroupBox("Character & Weapon Selection")
@@ -301,6 +330,72 @@ class GameLauncher(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to convert image: {str(e)}")
             return None
 
+    def populate_music_combo(self):
+        """Populate music combo box with .wav files from assets/"""
+        self.music_combo.clear()
+        if not os.path.exists(config.MUSIC_DIR):
+            return
+
+        for f in os.listdir(config.MUSIC_DIR):
+            if f.endswith(".wav"):
+                full_path = os.path.join(config.MUSIC_DIR, f)
+                self.music_combo.addItem(full_path)
+
+    def on_music_enabled_changed(self, state):
+        """Handle music enable/disable checkbox"""
+        enabled = state == Qt.CheckState.Checked.value
+        self.music_combo.setEnabled(enabled)
+        self.preview_btn.setEnabled(enabled)
+
+    def preview_music(self):
+        """Preview the selected music file"""
+        music_path = self.music_combo.currentText()
+        if not music_path or not os.path.exists(music_path):
+            return
+
+        try:
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+
+            pygame.mixer.music.load(music_path)
+            pygame.mixer.music.play()
+            pygame.mixer.music.set_volume(self.vol_slider.value() / 100.0)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to play music: {str(e)}")
+
+    def upload_music(self):
+        """Upload a new WAV music file"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Music File",
+            "",
+            "WAV Files (*.wav);;All Files (*)",
+        )
+
+        if not file_path:
+            return
+
+        if not os.path.exists(config.MUSIC_DIR):
+            os.makedirs(config.MUSIC_DIR, exist_ok=True)
+
+        filename = os.path.basename(file_path)
+        output_path = os.path.join(config.MUSIC_DIR, filename)
+
+        import shutil
+
+        try:
+            shutil.copy(file_path, output_path)
+
+            current_items = [
+                self.music_combo.itemText(i) for i in range(self.music_combo.count())
+            ]
+            if output_path not in current_items:
+                self.music_combo.addItem(output_path)
+
+            self.music_combo.setCurrentText(output_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to copy music: {str(e)}")
+
     def load_saved_settings(self):
         """Load and apply saved settings"""
         settings = config.load_settings()
@@ -330,6 +425,13 @@ class GameLauncher(QWidget):
         self.child_combo.setCurrentText(child)
         self.parent_combo.setCurrentText(parent)
         self.weapon_combo.setCurrentText(weapon)
+
+        # Set music settings
+        music_enabled = settings.get("music_enabled", True)
+        self.music_enabled_checkbox.setChecked(music_enabled)
+
+        music = settings.get("music", config.DEFAULT_MUSIC)
+        self.music_combo.setCurrentText(music)
 
     def load_high_scores(self):
         """Load and display high scores"""
@@ -374,6 +476,8 @@ class GameLauncher(QWidget):
             "difficulty": selected_diff,
             "resolution": self.res_combo.currentText(),
             "volume": self.vol_slider.value() / 100.0,
+            "music_enabled": self.music_enabled_checkbox.isChecked(),
+            "music": self.music_combo.currentText(),
             "child_face": self.child_combo.currentText(),
             "parent_face": self.parent_combo.currentText(),
             "weapon": self.weapon_combo.currentText(),

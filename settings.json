@@ -1,0 +1,12 @@
+{
+  "action": "start",
+  "player_name": "lol",
+  "difficulty": "Medium",
+  "resolution": "1280x720",
+  "volume": 0.16,
+  "music_enabled": true,
+  "music": "assets/background1.wav",
+  "child_face": "faces/child.png",
+  "parent_face": "faces/parent.png",
+  "weapon": "assets/\u2014Pngtree\u2014rolling pin_9156635.png"
+}
